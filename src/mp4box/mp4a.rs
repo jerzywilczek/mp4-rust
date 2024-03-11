@@ -487,6 +487,7 @@ pub struct DecoderSpecificDescriptor {
     pub profile: u8,
     pub freq_index: u8,
     pub chan_conf: u8,
+    pub full_config: Option<Vec<u8>>,
 }
 
 impl DecoderSpecificDescriptor {
@@ -495,6 +496,7 @@ impl DecoderSpecificDescriptor {
             profile: config.profile as u8,
             freq_index: config.freq_index as u8,
             chan_conf: config.chan_conf as u8,
+            full_config: None,
         }
     }
 }
@@ -540,9 +542,11 @@ fn get_chan_conf<R: Read + Seek>(
 }
 
 impl<R: Read + Seek> ReadDesc<&mut R> for DecoderSpecificDescriptor {
-    fn read_desc(reader: &mut R, _size: u32) -> Result<Self> {
-        let byte_a = reader.read_u8()?;
-        let byte_b = reader.read_u8()?;
+    fn read_desc(reader: &mut R, size: u32) -> Result<Self> {
+        let mut full_config = vec![0; size as usize];
+        reader.read_exact(&mut full_config)?;
+        let byte_a = *full_config.get(0).ok_or(Error::InvalidData("Not enough bytes to read the DecoderSpecificDescriptor"))?;
+        let byte_b = *full_config.get(1).ok_or(Error::InvalidData("Not enough bytes to read the DecoderSpecificDescriptor"))?;
         let profile = get_audio_object_type(byte_a, byte_b);
         let freq_index;
         let chan_conf;
@@ -558,6 +562,7 @@ impl<R: Read + Seek> ReadDesc<&mut R> for DecoderSpecificDescriptor {
             profile,
             freq_index,
             chan_conf,
+            full_config: Some(full_config),
         })
     }
 }
@@ -640,6 +645,7 @@ mod tests {
                             profile: 2,
                             freq_index: 3,
                             chan_conf: 1,
+                            full_config: None,
                         },
                     },
                     sl_config: SLConfigDescriptor::default(),
